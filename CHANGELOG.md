@@ -2,7 +2,29 @@
 
 All notable changes to the **CampusMove AI** platform will be documented in this file.
 
-## [v0.2.0] - Phase 2: Real-Time Bus Tracking (Current)
+## [v0.3.0] - Phase 3: Intelligent Trip Planner (Current)
+
+### Added
+- **Intelligent Trip Planning Engine (`tripPlannerService.js`)**:
+  - Deterministic multi-factor routing solver evaluating Origin, Destination, Required Arrival Times, and Travel Preferences (`fastest`, `earliest_arrival`, `convenient`).
+  - Seamless integration of real-time GPS telemetry and dynamic stop ETAs from Phase 2 when vehicles are active, with graceful fallback to scheduled timetables.
+  - Haversine pedestrian walking calculations (campus walking speed: 4.8 km/h) for walk-to-stop, walk-from-dropoff, and direct campus walking routes.
+  - Safety buffer computation (minimum 5–8 minutes) guaranteeing reliable arrival margins before academic classes and exams.
+  - Strict Arrival-Time Priority: heavily penalizes options that would arrive after the student's target deadline if valid on-time options exist.
+  - Delay-Triggered Automatic Replanning: detects delayed vehicles and automatically promotes on-time alternatives with clear explanation banners.
+- **REST Endpoints (`/api/trips`)**:
+  - `POST /api/trips/plan`: Structured trip planning endpoint returning top recommendation, alternative routes, step-by-step itinerary, safety margins, and human-readable rationales ("Why this option was selected").
+  - `GET /api/trips/suggestions`: Common campus commuter routes (Hostels $\rightarrow$ Block C, Library, Gate 1).
+- **Interactive Student Trip Planner UI (`TripPlanner.jsx`)**:
+  - Origin & Destination stop dropdowns with quick swap and one-tap suggestion chips.
+  - Target arrival time selector with preference filters (`⚡ Fastest`, `⏰ Earliest Arrival`, `🚶 Min Walking`).
+  - Recommended Trip Hero Card featuring departure/arrival clocks, safety margin badges, detailed 3-step visual journey itinerary, and natural language explanation bullets.
+  - Alternative routes comparative grid with difference tags (`+4m slower`, `Direct Walk`).
+  - Seamless map synchronization with `<CampusMap>`.
+- **Automated Verification**:
+  - Comprehensive 20-checkpoint automated test suite (`verify-phase3-trip-planner.js`) testing standard OD queries, arrival time constraints, delayed bus replanning, direct walk comparisons, preference weights, and invalid stop validation.
+
+## [v0.2.0] - Phase 2: Real-Time Bus Tracking
 
 ### Added
 - **Backend Realtime & Telemetry**:

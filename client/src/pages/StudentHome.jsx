@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CampusMap } from '../components/CampusMap';
+import { TripPlanner } from '../components/TripPlanner';
 import { StatCard } from '../components/StatCard';
 import { stopApi } from '../api/stopApi';
 import { routeApi } from '../api/routeApi';
@@ -176,6 +177,14 @@ export const StudentHome = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab('plan')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'plan' ? 'bg-white text-blue-900 shadow-md ring-2 ring-blue-300' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" /> Plan a Trip
+          </button>
           <button
             onClick={() => setActiveTab('map')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
@@ -588,6 +597,27 @@ export const StudentHome = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Trip Planner Tab */}
+      {activeTab === 'plan' && (
+        <TripPlanner
+          stops={stops}
+          routes={routes}
+          onSelectRoute={(route) => {
+            setSelectedRoute(route);
+            setActiveTab('map');
+          }}
+          onSelectStop={(stop) => {
+            setSelectedStop(stop);
+            setActiveTab('map');
+          }}
+          onSelectBus={(bus) => {
+            setSelectedBus(bus);
+            setActiveTab('map');
+          }}
+          onFocusMap={() => setActiveTab('map')}
+        />
       )}
     </div>
   );

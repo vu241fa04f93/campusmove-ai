@@ -19,6 +19,7 @@ import routeRoutes from './routes/routeRoutes.js';
 import stopRoutes from './routes/stopRoutes.js';
 import scheduleRoutes from './routes/scheduleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import tripRoutes from './routes/tripRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -38,7 +39,7 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'online',
-    system: 'CampusMove AI - Phase 1 Foundation',
+    system: 'CampusMove AI - Real-Time Mobility & Trip Planning Platform',
     timestamp: new Date().toISOString(),
   });
 });
@@ -50,6 +51,7 @@ app.use('/api/routes', routeRoutes);
 app.use('/api/stops', stopRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/trips', tripRoutes);
 
 // 404 Route handler
 app.use('*', (req, res) => {
