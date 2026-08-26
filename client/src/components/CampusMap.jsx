@@ -75,7 +75,7 @@ const createBusIcon = (busNumber, status) => {
 const ChangeMapView = ({ center, zoom }) => {
   const map = useMap();
   useEffect(() => {
-    if (center) {
+    if (center && Array.isArray(center) && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])) {
       map.setView(center, zoom || 15);
     }
   }, [center, zoom, map]);
@@ -98,10 +98,10 @@ export const CampusMap = ({
   let currentCenter = defaultCenter;
   let currentZoom = 15;
 
-  if (selectedStop && selectedStop.coordinates) {
+  if (selectedStop && selectedStop.coordinates && selectedStop.coordinates.lat && selectedStop.coordinates.lng) {
     currentCenter = [selectedStop.coordinates.lat, selectedStop.coordinates.lng];
     currentZoom = 17;
-  } else if (selectedBus && selectedBus.lastKnownLocation) {
+  } else if (selectedBus && selectedBus.lastKnownLocation && selectedBus.lastKnownLocation.lat && selectedBus.lastKnownLocation.lng) {
     currentCenter = [selectedBus.lastKnownLocation.lat, selectedBus.lastKnownLocation.lng];
     currentZoom = 17;
   }
@@ -123,12 +123,22 @@ export const CampusMap = ({
 
         {/* Render Route Polylines */}
         {routes.map((route) => {
-          if (!route.pathCoordinates || route.pathCoordinates.length === 0) return null;
+          let polyPositions = [];
+          if (route.pathCoordinates && route.pathCoordinates.length > 0) {
+            polyPositions = route.pathCoordinates;
+          } else if (route.stops && route.stops.length > 0) {
+            polyPositions = route.stops
+              .filter((s) => s.stop && s.stop.coordinates && s.stop.coordinates.lat)
+              .map((s) => [s.stop.coordinates.lat, s.stop.coordinates.lng]);
+          }
+
+          if (polyPositions.length < 2) return null;
+
           const isSelected = selectedRoute && selectedRoute._id === route._id;
           return (
             <Polyline
               key={route._id}
-              positions={route.pathCoordinates}
+              positions={polyPositions}
               pathOptions={{
                 color: route.color || '#2563eb',
                 weight: isSelected ? 6 : 4,
@@ -157,8 +167,9 @@ export const CampusMap = ({
 
         {/* Render Campus Stop Markers */}
         {stops.map((stop) => {
-          if (!stop.coordinates || !stop.coordinates.lat) return null;
-          const isSelected = selectedStop && selectedStop._id === stop._id;
+          if (!stop.coordinates || typeof stop.coordinates.lat !== 'number' || typeof stop.coordinates.lng !== 'number') {
+            return null;
+          }
           return (
             <Marker
               key={stop._id}
@@ -205,7 +216,9 @@ export const CampusMap = ({
 
         {/* Render Bus Live Markers */}
         {buses.map((bus) => {
-          if (!bus.lastKnownLocation || !bus.lastKnownLocation.lat) return null;
+          if (!bus.lastKnownLocation || typeof bus.lastKnownLocation.lat !== 'number' || typeof bus.lastKnownLocation.lng !== 'number') {
+            return null;
+          }
           return (
             <Marker
               key={bus._id}

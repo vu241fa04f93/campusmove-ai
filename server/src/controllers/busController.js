@@ -51,7 +51,11 @@ export const createBus = async (req, res, next) => {
       );
     }
 
-    res.status(201).json({ success: true, data: bus });
+    const populatedBus = await Bus.findById(bus._id)
+      .populate('currentDriver', 'name email phone')
+      .populate('currentRoute');
+
+    res.status(201).json({ success: true, data: populatedBus });
   } catch (error) {
     next(error);
   }
@@ -66,13 +70,32 @@ export const updateBus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Bus not found' });
     }
 
-    // Check permissions: Admin can edit anything; Driver can only edit their assigned bus status
+    // Check permissions: Admin can edit anything; Driver can ONLY edit their assigned bus
     if (req.user.role === 'driver') {
-      if (bus.currentDriver && bus.currentDriver.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ success: false, message: 'Cannot modify a bus not assigned to you' });
+      if (!bus.currentDriver || bus.currentDriver.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized: You can only update the bus assigned to you',
+        });
       }
+      // Driver can only update status, statusMessage, and currentPassengerCount
+      const allowedUpdates = {};
+      if (req.body.status !== undefined) allowedUpdates.status = req.body.status;
+      if (req.body.statusMessage !== undefined) allowedUpdates.statusMessage = req.body.statusMessage;
+      if (req.body.currentPassengerCount !== undefined) allowedUpdates.currentPassengerCount = req.body.currentPassengerCount;
+      if (req.body.lastKnownLocation !== undefined) allowedUpdates.lastKnownLocation = req.body.lastKnownLocation;
+
+      const updatedBus = await Bus.findByIdAndUpdate(req.params.id, allowedUpdates, {
+        new: true,
+        runValidators: true,
+      })
+        .populate('currentDriver', 'name email phone')
+        .populate('currentRoute');
+
+      return res.status(200).json({ success: true, data: updatedBus });
     }
 
+    // Admin updates
     const updatedBus = await Bus.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,

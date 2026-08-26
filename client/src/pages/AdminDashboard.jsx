@@ -7,6 +7,8 @@ import { busApi } from '../api/busApi';
 import { routeApi } from '../api/routeApi';
 import { stopApi } from '../api/stopApi';
 import { scheduleApi } from '../api/scheduleApi';
+import { userApi } from '../api/userApi';
+import { RoleBadge } from '../components/RoleBadge';
 import {
   Bus,
   MapPin,
@@ -20,19 +22,21 @@ import {
   Check,
   AlertCircle,
   Users,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
   const { user } = useAuth();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'buses', 'routes', 'stops', 'schedules'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'buses', 'routes', 'stops', 'schedules', 'users'
 
   // Data States
   const [buses, setBuses] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [stops, setStops] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal States
@@ -45,17 +49,19 @@ export const AdminDashboard = () => {
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      const [busRes, routeRes, stopRes, schedRes] = await Promise.all([
+      const [busRes, routeRes, stopRes, schedRes, usersRes] = await Promise.all([
         busApi.getAll(),
         routeApi.getAll(),
         stopApi.getAll(),
         scheduleApi.getAll(),
+        userApi.getAll().catch(() => ({ success: false, data: [] })),
       ]);
 
       if (busRes.success) setBuses(busRes.data);
       if (routeRes.success) setRoutes(routeRes.data);
       if (stopRes.success) setStops(stopRes.data);
       if (schedRes.success) setSchedules(schedRes.data);
+      if (usersRes.success) setUsersList(usersRes.data);
     } catch (err) {
       console.error('[AdminDashboard] Error fetching transport data:', err);
     } finally {
@@ -77,11 +83,12 @@ export const AdminDashboard = () => {
       setFormData({
         busNumber: `Bus ${buses.length + 10}`,
         plateNumber: `KA-01-EXP-${Math.floor(1000 + Math.random() * 9000)}`,
-        model: 'Standard Campus Shuttle',
+        model: 'Tata Ultra Electric Shuttle',
         capacity: 40,
         status: 'active',
         currentRoute: routes[0]?._id || '',
-        statusMessage: 'Operating normally',
+        currentDriver: '',
+        statusMessage: 'Operating normally on campus route',
       });
     } else if (type === 'stop') {
       setFormData({
@@ -91,7 +98,7 @@ export const AdminDashboard = () => {
         lat: 28.545,
         lng: 77.192,
         campusZone: 'Academic Zone',
-        amenities: 'Covered Shelter, Seating',
+        amenities: 'Covered Shelter, Seating, Lighting',
       });
     } else if (type === 'route') {
       setFormData({
@@ -101,6 +108,7 @@ export const AdminDashboard = () => {
         description: '',
         totalDistanceKm: 3.0,
         estimatedDurationMinutes: 15,
+        selectedStops: stops.slice(0, 3).map((s) => s._id),
       });
     } else if (type === 'schedule') {
       setFormData({
@@ -129,6 +137,7 @@ export const AdminDashboard = () => {
         capacity: item.capacity,
         status: item.status,
         currentRoute: item.currentRoute?._id || item.currentRoute || '',
+        currentDriver: item.currentDriver?._id || item.currentDriver || '',
         statusMessage: item.statusMessage || '',
       });
     } else if (type === 'stop') {
@@ -149,6 +158,7 @@ export const AdminDashboard = () => {
         description: item.description || '',
         totalDistanceKm: item.totalDistanceKm || 3.0,
         estimatedDurationMinutes: item.estimatedDurationMinutes || 15,
+        selectedStops: item.stops ? item.stops.map((st) => st.stop?._id || st.stop) : [],
       });
     } else if (type === 'schedule') {
       setFormData({
@@ -164,15 +174,29 @@ export const AdminDashboard = () => {
     setIsModalOpen(true);
   };
 
+  const handleToggleStopSelection = (stopId) => {
+    const current = formData.selectedStops || [];
+    if (current.includes(stopId)) {
+      setFormData({ ...formData, selectedStops: current.filter((id) => id !== stopId) });
+    } else {
+      setFormData({ ...formData, selectedStops: [...current, stopId] });
+    }
+  };
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
     try {
       if (modalType === 'bus') {
+        const payload = {
+          ...formData,
+          currentDriver: formData.currentDriver || null,
+          currentRoute: formData.currentRoute || null,
+        };
         if (editingItem) {
-          await busApi.update(editingItem._id, formData);
+          await busApi.update(editingItem._id, payload);
         } else {
-          await busApi.create(formData);
+          await busApi.create(payload);
         }
       } else if (modalType === 'stop') {
         const payload = {
@@ -189,10 +213,27 @@ export const AdminDashboard = () => {
           await stopApi.create(payload);
         }
       } else if (modalType === 'route') {
+        const stopsPayload = (formData.selectedStops || []).map((stopId, idx) => ({
+          stop: stopId,
+          sequence: idx + 1,
+          distanceFromStartKm: parseFloat((idx * 0.7).toFixed(1)),
+          estimatedMinutesFromStart: idx * 3,
+        }));
+
+        const payload = {
+          name: formData.name,
+          code: formData.code,
+          color: formData.color,
+          description: formData.description,
+          totalDistanceKm: parseFloat(formData.totalDistanceKm) || 3.0,
+          estimatedDurationMinutes: parseInt(formData.estimatedDurationMinutes) || 15,
+          stops: stopsPayload,
+        };
+
         if (editingItem) {
-          await routeApi.update(editingItem._id, formData);
+          await routeApi.update(editingItem._id, payload);
         } else {
-          await routeApi.create(formData);
+          await routeApi.create(payload);
         }
       } else if (modalType === 'schedule') {
         if (editingItem) {
@@ -221,6 +262,17 @@ export const AdminDashboard = () => {
       alert(err.response?.data?.message || 'Failed to delete record.');
     }
   };
+
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await userApi.updateRole(userId, newRole);
+      fetchAllData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update user role');
+    }
+  };
+
+  const driversList = usersList.filter((u) => u.role === 'driver');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -278,6 +330,14 @@ export const AdminDashboard = () => {
           >
             <Clock className="w-3.5 h-3.5" /> Timetable ({schedules.length})
           </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'users' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" /> Users ({usersList.length})
+          </button>
         </div>
       </div>
 
@@ -286,7 +346,7 @@ export const AdminDashboard = () => {
         <StatCard title="Total Buses" value={buses.length} subtext="Fleet vehicles" icon={Bus} color="purple" />
         <StatCard title="Active Routes" value={routes.length} subtext="Campus corridors" icon={Navigation} color="blue" />
         <StatCard title="Designated Stops" value={stops.length} subtext="Campus-wide" icon={MapPin} color="emerald" />
-        <StatCard title="Total Schedules" value={schedules.length} subtext="Daily services" icon={Clock} color="amber" />
+        <StatCard title="Registered Users" value={usersList.length} subtext="Students & Staff" icon={Users} color="amber" />
       </div>
 
       {/* TAB 1: OVERVIEW */}
@@ -586,6 +646,55 @@ export const AdminDashboard = () => {
         </div>
       )}
 
+      {/* TAB 6: USERS & ROLES */}
+      {activeTab === 'users' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">User Accounts & Role Management</h3>
+              <p className="text-xs text-slate-500">View users and assign Student, Driver, or Admin roles</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 uppercase font-bold tracking-wider border-y border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">User Name</th>
+                  <th className="py-3 px-4">Email</th>
+                  <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">Current Role</th>
+                  <th className="py-3 px-4 text-right">Role Assignment</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {usersList.map((u) => (
+                  <tr key={u._id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3.5 px-4 font-bold text-slate-900">{u.name}</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-600">{u.email}</td>
+                    <td className="py-3.5 px-4 text-slate-600">{u.phone || 'N/A'}</td>
+                    <td className="py-3.5 px-4">
+                      <RoleBadge role={u.role} />
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                        className="px-2.5 py-1 rounded-lg border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="student">Student</option>
+                        <option value="driver">Driver</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Reusable CRUD Modal Form */}
       <Modal
         isOpen={isModalOpen}
@@ -655,20 +764,37 @@ export const AdminDashboard = () => {
                   <option value="out_of_service">Out of Service</option>
                 </select>
               </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Assigned Route</label>
-                <select
-                  value={formData.currentRoute || ''}
-                  onChange={(e) => setFormData({ ...formData, currentRoute: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                >
-                  <option value="">None</option>
-                  {routes.map((r) => (
-                    <option key={r._id} value={r._id}>
-                      {r.name} ({r.code})
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Assigned Route</label>
+                  <select
+                    value={formData.currentRoute || ''}
+                    onChange={(e) => setFormData({ ...formData, currentRoute: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  >
+                    <option value="">None</option>
+                    {routes.map((r) => (
+                      <option key={r._id} value={r._id}>
+                        {r.name} ({r.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Assigned Driver</label>
+                  <select
+                    value={formData.currentDriver || ''}
+                    onChange={(e) => setFormData({ ...formData, currentDriver: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  >
+                    <option value="">Unassigned</option>
+                    {driversList.map((d) => (
+                      <option key={d._id} value={d._id}>
+                        {d.name} ({d.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </>
           )}
@@ -786,6 +912,32 @@ export const AdminDashboard = () => {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  Select Stops in Sequence:
+                </label>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 border border-slate-200 rounded-lg p-2 bg-slate-50">
+                  {stops.map((st) => {
+                    const isSelected = (formData.selectedStops || []).includes(st._id);
+                    return (
+                      <div
+                        key={st._id}
+                        onClick={() => handleToggleStopSelection(st._id)}
+                        className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition ${
+                          isSelected ? 'bg-purple-100 text-purple-900 font-bold' : 'hover:bg-slate-200/60'
+                        }`}
+                      >
+                        <span className="text-xs">
+                          {st.name} ({st.code})
+                        </span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-purple-700" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Est. Duration (Mins)</label>

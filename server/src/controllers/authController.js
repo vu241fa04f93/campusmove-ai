@@ -31,16 +31,17 @@ export const register = async (req, res, next) => {
       phone: phone || '',
     });
 
+    let profile = null;
     // Create corresponding profile
     if (user.role === 'student') {
-      await StudentProfile.create({
+      profile = await StudentProfile.create({
         user: user._id,
         studentId: studentId || '',
         department: department || 'General Sciences',
         hostel: hostel || 'Hostel 3',
       });
     } else if (user.role === 'driver') {
-      await DriverProfile.create({
+      profile = await DriverProfile.create({
         user: user._id,
         licenseNumber: licenseNumber || '',
       });
@@ -52,11 +53,13 @@ export const register = async (req, res, next) => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user._id.toString(),
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
         phone: user.phone,
+        profile,
       },
     });
   } catch (error) {
@@ -84,7 +87,7 @@ export const login = async (req, res, next) => {
     // Fetch profile info if student/driver
     let profile = null;
     if (user.role === 'student') {
-      profile = await StudentProfile.findOne({ user: user._id });
+      profile = await StudentProfile.findOne({ user: user._id }).populate('savedStops defaultRoute');
     } else if (user.role === 'driver') {
       profile = await DriverProfile.findOne({ user: user._id }).populate('assignedBus');
     }
@@ -93,7 +96,8 @@ export const login = async (req, res, next) => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user._id.toString(),
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
@@ -122,7 +126,8 @@ export const getMe = async (req, res, next) => {
     res.status(200).json({
       success: true,
       user: {
-        id: user._id,
+        id: user._id.toString(),
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
