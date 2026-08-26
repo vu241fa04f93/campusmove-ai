@@ -6,6 +6,8 @@ import { stopApi } from '../api/stopApi';
 import { routeApi } from '../api/routeApi';
 import { busApi } from '../api/busApi';
 import { scheduleApi } from '../api/scheduleApi';
+import { socketService } from '../services/socketService';
+import { formatSpeed, formatETA, formatDistance } from '../utils/etaCalculator';
 import {
   Bus,
   MapPin,
@@ -17,6 +19,8 @@ import {
   Layers,
   Search,
   CheckCircle,
+  Radio,
+  Gauge,
 } from 'lucide-react';
 
 export const StudentHome = () => {
@@ -30,6 +34,7 @@ export const StudentHome = () => {
   // Filter & Selection states
   const [selectedStop, setSelectedStop] = useState(null);
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [selectedBus, setSelectedBus] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('map'); // 'map', 'routes', 'schedules'
 
@@ -56,6 +61,92 @@ export const StudentHome = () => {
 
   useEffect(() => {
     fetchData();
+    socketService.connect();
+
+    // Listen for live location broadcasts to update local fleet list
+    const unsubLocation = socketService.onLocationBroadcast((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              lastKnownLocation: {
+                ...b.lastKnownLocation,
+                lat: data.coordinates.lat,
+                lng: data.coordinates.lng,
+                speed: data.speed,
+                heading: data.heading,
+                accuracy: data.accuracy,
+                updatedAt: new Date(),
+              },
+              status: data.status || b.status,
+              statusMessage: data.statusMessage || b.statusMessage,
+              isTripActive: data.isTripActive,
+              isLive: true,
+              isSimulated: data.isSimulated,
+              etas: data.etas || [],
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubStatus = socketService.onStatusUpdated((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              status: data.status,
+              statusMessage: data.statusMessage || b.statusMessage,
+              etas: data.etas || b.etas,
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubStart = socketService.onTripStarted((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              isTripActive: true,
+              isLive: true,
+              isSimulated: data.isSimulated,
+              status: 'active',
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubEnd = socketService.onTripEnded((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              isTripActive: false,
+              isLive: false,
+              status: 'out_of_service',
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    return () => {
+      unsubLocation();
+      unsubStatus();
+      unsubStart();
+      unsubEnd();
+    };
   }, []);
 
   const activeBusesCount = buses.filter((b) => b.status === 'active').length;
@@ -73,7 +164,7 @@ export const StudentHome = () => {
       <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-blue-200 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-blue-300" /> GreenTech University Campus Mobility
+            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" /> Live Real-Time Campus Tracking
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold mt-1">
             Welcome, {user?.name || 'Student'}!
@@ -117,7 +208,7 @@ export const StudentHome = () => {
         <StatCard
           title="Active Buses"
           value={`${activeBusesCount} / ${buses.length}`}
-          subtext="On campus routes"
+          subtext="Broadcasting real-time GPS"
           icon={Bus}
           color="emerald"
         />
@@ -156,15 +247,18 @@ export const StudentHome = () => {
                     <Navigation className="w-4 h-4 text-blue-600" /> Interactive Campus Map
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Click any stop pin or route to inspect schedules and amenities
+                    Live GPS positions update automatically via WebSockets
                   </p>
                 </div>
-                {selectedStop && (
+                {(selectedStop || selectedBus) && (
                   <button
-                    onClick={() => setSelectedStop(null)}
+                    onClick={() => {
+                      setSelectedStop(null);
+                      setSelectedBus(null);
+                    }}
                     className="text-xs text-blue-600 font-semibold hover:underline"
                   >
-                    Reset Map Center
+                    Reset Map Focus
                   </button>
                 )}
               </div>
@@ -175,8 +269,16 @@ export const StudentHome = () => {
                 buses={buses}
                 selectedStop={selectedStop}
                 selectedRoute={selectedRoute}
-                onSelectStop={(stop) => setSelectedStop(stop)}
-                height="h-[480px]"
+                selectedBus={selectedBus}
+                onSelectStop={(stop) => {
+                  setSelectedStop(stop);
+                  setSelectedBus(null);
+                }}
+                onSelectBus={(bus) => {
+                  setSelectedBus(bus);
+                  setSelectedStop(null);
+                }}
+                height="h-[500px]"
               />
             </div>
           </div>
@@ -185,47 +287,111 @@ export const StudentHome = () => {
           <div className="space-y-4">
             {/* Live Bus Status Card */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-3">
-                <Bus className="w-4 h-4 text-emerald-600" /> Operating Fleet Status
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Bus className="w-4 h-4 text-emerald-600" /> Operating Fleet Status
+                </h3>
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Live Feed
+                </span>
+              </div>
+
               <div className="space-y-3">
-                {buses.map((bus) => (
-                  <div
-                    key={bus._id}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-300 transition"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800 text-sm">{bus.busNumber}</span>
-                        <span className="text-[10px] text-slate-500 font-mono bg-white px-1.5 py-0.5 rounded border">
-                          {bus.plateNumber}
+                {buses.map((bus) => {
+                  const isSelected = selectedBus?._id === bus._id || selectedBus?.busId === bus._id;
+                  return (
+                    <div
+                      key={bus._id}
+                      onClick={() => {
+                        setSelectedBus(bus);
+                        setSelectedStop(null);
+                      }}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50/80 border-blue-400 shadow-sm'
+                          : 'bg-slate-50 border-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{bus.busNumber}</span>
+                          <span className="text-[10px] text-slate-500 font-mono bg-white px-1.5 py-0.5 rounded border">
+                            {bus.plateNumber}
+                          </span>
+                          {bus.isSimulated && (
+                            <span className="text-[9px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                              SIMULATED
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                            bus.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : bus.status === 'delayed'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {bus.status}
                         </span>
                       </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                          bus.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : bus.status === 'delayed'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {bus.status}
-                      </span>
+
+                      <p className="text-xs text-slate-600 mt-1">
+                        Route: <span className="font-medium">{bus.currentRoute?.name || 'General Campus Line'}</span>
+                      </p>
+
+                      <div className="flex items-center justify-between mt-1.5 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1 font-semibold text-slate-700">
+                          <Gauge className="w-3 h-3 text-blue-600" />
+                          {formatSpeed(bus.lastKnownLocation?.speed)}
+                        </span>
+                        <span className="italic truncate max-w-[150px]">
+                          💬 {bus.statusMessage || 'Operating normally'}
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Route: <span className="font-medium">{bus.currentRoute?.name || 'General Route'}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-1 italic">
-                      💬 {bus.statusMessage || 'Operating normally'}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            {/* Selected Stop Details */}
-            {selectedStop ? (
+            {/* Selected Stop / Bus Details Card */}
+            {selectedBus ? (
+              <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bus className="w-5 h-5 text-blue-400" />
+                    <h4 className="font-bold text-white text-base">{selectedBus.busNumber}</h4>
+                  </div>
+                  <span className="font-mono text-xs text-slate-300 bg-white/10 px-2 py-0.5 rounded">
+                    {selectedBus.plateNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-white/5 p-2 rounded-xl">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Speed</span>
+                    <p className="font-black text-white text-sm mt-0.5">
+                      {formatSpeed(selectedBus.lastKnownLocation?.speed || selectedBus.speed)}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 p-2 rounded-xl">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Heading</span>
+                    <p className="font-black text-white text-sm mt-0.5">
+                      {Math.round(selectedBus.lastKnownLocation?.heading || selectedBus.heading || 0)}°
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white/10 p-2.5 rounded-xl text-xs">
+                  <p className="text-[10px] text-slate-300 font-bold uppercase">Driver Note</p>
+                  <p className="text-xs text-blue-200 mt-0.5">
+                    {selectedBus.statusMessage || 'Operating normally on schedule'}
+                  </p>
+                </div>
+              </div>
+            ) : selectedStop ? (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
                 <div className="flex items-start justify-between">
                   <div>
@@ -252,8 +418,8 @@ export const StudentHome = () => {
             ) : (
               <div className="bg-slate-50 border border-dashed border-slate-300 p-5 rounded-2xl text-center">
                 <MapPin className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
-                <p className="text-xs font-bold text-slate-600">Select any stop on the map</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Click a stop pin to view its details and amenities</p>
+                <p className="text-xs font-bold text-slate-600">Select any stop or bus</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Click a bus marker to view live speed and stop ETAs</p>
               </div>
             )}
           </div>

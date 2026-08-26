@@ -27,6 +27,18 @@ const busSchema = new mongoose.Schema(
       enum: ['active', 'delayed', 'breakdown', 'out_of_service'],
       default: 'active',
     },
+    isTripActive: {
+      type: Boolean,
+      default: false,
+    },
+    isLive: {
+      type: Boolean,
+      default: false,
+    },
+    isSimulated: {
+      type: Boolean,
+      default: false,
+    },
     currentDriver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -38,8 +50,10 @@ const busSchema = new mongoose.Schema(
     lastKnownLocation: {
       lat: { type: Number, default: 28.545 },
       lng: { type: Number, default: 77.192 },
-      speed: { type: Number, default: 0 },
-      heading: { type: Number, default: 0 },
+      speed: { type: Number, default: 0 }, // in km/h
+      heading: { type: Number, default: 0 }, // in degrees (0-360)
+      accuracy: { type: Number, default: 5 }, // in meters
+      altitude: { type: Number, default: null },
       updatedAt: { type: Date, default: Date.now },
     },
     currentPassengerCount: {

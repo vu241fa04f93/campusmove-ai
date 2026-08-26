@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getAllBuses,
   getBusById,
+  getBusLiveLocation,
   createBus,
   updateBus,
   deleteBus,
@@ -13,6 +14,9 @@ const router = express.Router();
 router.route('/')
   .get(getAllBuses)
   .post(protect, authorize('admin'), createBus);
+
+router.route('/:id/live')
+  .get(getBusLiveLocation);
 
 router.route('/:id')
   .get(getBusById)

@@ -1,5 +1,6 @@
 import { Bus } from '../models/Bus.js';
 import { DriverProfile } from '../models/DriverProfile.js';
+import { calculateStopETAs } from '../utils/geoUtils.js';
 
 // @desc Get all buses
 // @route GET /api/buses
@@ -33,6 +34,48 @@ export const getBusById = async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, data: bus });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Get live location & stop ETAs for a bus
+// @route GET /api/buses/:id/live
+export const getBusLiveLocation = async (req, res, next) => {
+  try {
+    const bus = await Bus.findById(req.params.id)
+      .populate('currentDriver', 'name email phone')
+      .populate({
+        path: 'currentRoute',
+        populate: { path: 'stops.stop' },
+      });
+
+    if (!bus) {
+      return res.status(404).json({ success: false, message: 'Bus not found' });
+    }
+
+    let etas = [];
+    if (bus.currentRoute?.stops && bus.lastKnownLocation) {
+      etas = calculateStopETAs(bus.lastKnownLocation, bus.currentRoute.stops, bus.status);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        busId: bus._id,
+        busNumber: bus.busNumber,
+        plateNumber: bus.plateNumber,
+        isTripActive: bus.isTripActive,
+        isLive: bus.isLive,
+        isSimulated: bus.isSimulated,
+        status: bus.status,
+        statusMessage: bus.statusMessage,
+        lastKnownLocation: bus.lastKnownLocation,
+        route: bus.currentRoute,
+        driver: bus.currentDriver,
+        etas,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -78,12 +121,15 @@ export const updateBus = async (req, res, next) => {
           message: 'Not authorized: You can only update the bus assigned to you',
         });
       }
-      // Driver can only update status, statusMessage, and currentPassengerCount
+      // Driver can only update status, statusMessage, isTripActive, and currentPassengerCount
       const allowedUpdates = {};
       if (req.body.status !== undefined) allowedUpdates.status = req.body.status;
       if (req.body.statusMessage !== undefined) allowedUpdates.statusMessage = req.body.statusMessage;
       if (req.body.currentPassengerCount !== undefined) allowedUpdates.currentPassengerCount = req.body.currentPassengerCount;
       if (req.body.lastKnownLocation !== undefined) allowedUpdates.lastKnownLocation = req.body.lastKnownLocation;
+      if (req.body.isTripActive !== undefined) allowedUpdates.isTripActive = req.body.isTripActive;
+      if (req.body.isLive !== undefined) allowedUpdates.isLive = req.body.isLive;
+      if (req.body.isSimulated !== undefined) allowedUpdates.isSimulated = req.body.isSimulated;
 
       const updatedBus = await Bus.findByIdAndUpdate(req.params.id, allowedUpdates, {
         new: true,
