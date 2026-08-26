@@ -9,6 +9,7 @@ import { stopApi } from '../api/stopApi';
 import { scheduleApi } from '../api/scheduleApi';
 import { userApi } from '../api/userApi';
 import { RoleBadge } from '../components/RoleBadge';
+import { socketService } from '../services/socketService';
 import {
   Bus,
   MapPin,
@@ -71,6 +72,95 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     fetchAllData();
+    socketService.connect();
+    socketService.joinCampusMap();
+
+    // Listen for live location broadcasts to update local fleet list and map
+    const unsubLocation = socketService.onLocationBroadcast((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              lastKnownLocation: {
+                ...b.lastKnownLocation,
+                lat: data.coordinates.lat,
+                lng: data.coordinates.lng,
+                speed: data.speed,
+                heading: data.heading,
+                accuracy: data.accuracy,
+                updatedAt: new Date(),
+              },
+              status: data.status || b.status,
+              statusMessage: data.statusMessage || b.statusMessage,
+              isTripActive: data.isTripActive,
+              isLive: true,
+              isSimulated: data.isSimulated,
+              etas: data.etas || [],
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubStatus = socketService.onStatusUpdated((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              status: data.status,
+              statusMessage: data.statusMessage || b.statusMessage,
+              etas: data.etas || b.etas,
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubStart = socketService.onTripStarted((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              isTripActive: true,
+              isLive: true,
+              isSimulated: data.isSimulated,
+              status: 'active',
+              currentRoute: data.route || b.currentRoute,
+              currentDriver: data.driver || b.currentDriver,
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    const unsubEnd = socketService.onTripEnded((data) => {
+      setBuses((prev) =>
+        prev.map((b) => {
+          if (b._id === data.busId) {
+            return {
+              ...b,
+              isTripActive: false,
+              isLive: false,
+              status: 'out_of_service',
+            };
+          }
+          return b;
+        })
+      );
+    });
+
+    return () => {
+      unsubLocation();
+      unsubStatus();
+      unsubStart();
+      unsubEnd();
+    };
   }, []);
 
   // Modal Handlers
@@ -400,7 +490,19 @@ export const AdminDashboard = () => {
               <tbody className="divide-y divide-slate-100">
                 {buses.map((bus) => (
                   <tr key={bus._id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{bus.busNumber}</td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                      <div className="flex items-center gap-1.5">
+                        {bus.busNumber}
+                        {bus.isLive && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live GPS Active"></span>
+                        )}
+                        {bus.isSimulated && (
+                          <span className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded">
+                            SIM
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">{bus.plateNumber}</td>
                     <td className="py-3.5 px-4 text-slate-700">
                       {bus.model} ({bus.capacity} seats)
@@ -418,10 +520,12 @@ export const AdminDashboard = () => {
                             ? 'bg-emerald-100 text-emerald-800'
                             : bus.status === 'delayed'
                             ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
+                            : bus.status === 'breakdown'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-slate-100 text-slate-600'
                         }`}
                       >
-                        {bus.status}
+                        {bus.status ? bus.status.replace('_', ' ') : 'Inactive'}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
