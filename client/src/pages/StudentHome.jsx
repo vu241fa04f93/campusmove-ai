@@ -13,6 +13,10 @@ import { scheduleApi } from '../api/scheduleApi';
 import { alertApi } from '../api/alertApi';
 import { socketService } from '../services/socketService';
 import { formatSpeed, formatETA, formatDistance } from '../utils/etaCalculator';
+import { CrowdIndicator } from '../components/CrowdIndicator';
+import { PredictionCard } from '../components/PredictionCard';
+import { DemandForecast } from '../components/DemandForecast';
+import { predictionApi } from '../api/predictionApi';
 import {
   Bus,
   MapPin,
@@ -29,6 +33,7 @@ import {
   CheckCircle,
   Radio,
   Gauge,
+  Users,
 } from 'lucide-react';
 
 export const StudentHome = () => {
@@ -46,16 +51,18 @@ export const StudentHome = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('map'); // 'map', 'routes', 'schedules'
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [fleetPredictions, setFleetPredictions] = useState([]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [stopsRes, routesRes, busesRes, schedRes, alertsRes] = await Promise.all([
+      const [stopsRes, routesRes, busesRes, schedRes, alertsRes, predRes] = await Promise.all([
         stopApi.getAll(),
         routeApi.getAll(),
         busApi.getAll(),
         scheduleApi.getAll(),
         alertApi.getAll({ unreadOnly: true }),
+        predictionApi.getSummary().catch(() => ({ success: false, data: null })),
       ]);
 
       if (stopsRes.success) setStops(stopsRes.data);
@@ -63,6 +70,9 @@ export const StudentHome = () => {
       if (busesRes.success) setBuses(busesRes.data);
       if (schedRes.success) setSchedules(schedRes.data);
       if (alertsRes.success) setUnreadAlertCount(alertsRes.unreadCount || 0);
+      if (predRes.success && predRes.data?.fleetPredictions) {
+        setFleetPredictions(predRes.data.fleetPredictions);
+      }
     } catch (err) {
       console.error('[StudentHome] Failed to load data:', err);
     } finally {
@@ -217,6 +227,14 @@ export const StudentHome = () => {
             <Sparkles className="w-4 h-4 text-amber-300" /> Plan a Trip
           </button>
           <button
+            onClick={() => setActiveTab('predictions')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'predictions' ? 'bg-white text-purple-950 shadow-md ring-2 ring-purple-300' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-300" /> ML Predictions & Crowd
+          </button>
+          <button
             onClick={() => setActiveTab('map')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
               activeTab === 'map' ? 'bg-white text-blue-900 shadow-md' : 'bg-white/10 hover:bg-white/20 text-white'
@@ -347,6 +365,7 @@ export const StudentHome = () => {
               <div className="space-y-3">
                 {buses.map((bus) => {
                   const isSelected = selectedBus?._id === bus._id || selectedBus?.busId === bus._id;
+                  const busPred = fleetPredictions.find((p) => p.busId === bus._id);
                   return (
                     <div
                       key={bus._id}
@@ -354,9 +373,9 @@ export const StudentHome = () => {
                         setSelectedBus(bus);
                         setSelectedStop(null);
                       }}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                      className={`p-3 rounded-xl border transition cursor-pointer space-y-2 ${
                         isSelected
-                          ? 'bg-blue-50/80 border-blue-400 shadow-sm'
+                          ? 'bg-purple-50/80 border-purple-400 shadow-sm'
                           : 'bg-slate-50 border-slate-100 hover:border-slate-300'
                       }`}
                     >
@@ -385,18 +404,31 @@ export const StudentHome = () => {
                         </span>
                       </div>
 
-                      <p className="text-xs text-slate-600 mt-1">
-                        Route: <span className="font-medium">{bus.currentRoute?.name || 'General Campus Line'}</span>
-                      </p>
+                      <div className="flex items-center justify-between text-xs text-slate-600">
+                        <span>Route: <span className="font-medium">{bus.currentRoute?.name || 'General Campus Line'}</span></span>
+                        {busPred?.crowd && (
+                          <CrowdIndicator
+                            crowdLevel={busPred.crowd.crowdLevel}
+                            occupancyPercentage={busPred.crowd.occupancyPercentage}
+                            compact={true}
+                          />
+                        )}
+                      </div>
 
-                      <div className="flex items-center justify-between mt-1.5 text-[11px] text-slate-500">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
                         <span className="flex items-center gap-1 font-semibold text-slate-700">
                           <Gauge className="w-3 h-3 text-blue-600" />
                           {formatSpeed(bus.lastKnownLocation?.speed)}
                         </span>
-                        <span className="italic truncate max-w-[150px]">
-                          💬 {bus.statusMessage || 'Operating normally'}
-                        </span>
+                        {busPred?.eta?.predictedETA !== undefined ? (
+                          <span className="font-extrabold text-purple-700">
+                            ETA: {busPred.eta.predictedETA}m ({busPred.eta.adjustmentMinutes > 0 ? `+${busPred.eta.adjustmentMinutes}m` : `${busPred.eta.adjustmentMinutes}m`})
+                          </span>
+                        ) : (
+                          <span className="italic truncate max-w-[150px]">
+                            💬 {bus.statusMessage || 'Operating normally'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -406,38 +438,66 @@ export const StudentHome = () => {
 
             {/* Selected Stop / Bus Details Card */}
             {selectedBus ? (
-              <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Bus className="w-5 h-5 text-blue-400" />
-                    <h4 className="font-bold text-white text-base">{selectedBus.busNumber}</h4>
+              <div className="space-y-3">
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bus className="w-5 h-5 text-blue-400" />
+                      <h4 className="font-bold text-white text-base">{selectedBus.busNumber}</h4>
+                    </div>
+                    <span className="font-mono text-xs text-slate-300 bg-white/10 px-2 py-0.5 rounded">
+                      {selectedBus.plateNumber}
+                    </span>
                   </div>
-                  <span className="font-mono text-xs text-slate-300 bg-white/10 px-2 py-0.5 rounded">
-                    {selectedBus.plateNumber}
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="bg-white/5 p-2 rounded-xl">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Speed</span>
-                    <p className="font-black text-white text-sm mt-0.5">
-                      {formatSpeed(selectedBus.lastKnownLocation?.speed || selectedBus.speed)}
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="bg-white/5 p-2 rounded-xl">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Speed</span>
+                      <p className="font-black text-white text-sm mt-0.5">
+                        {formatSpeed(selectedBus.lastKnownLocation?.speed || selectedBus.speed)}
+                      </p>
+                    </div>
+                    <div className="bg-white/5 p-2 rounded-xl">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Heading</span>
+                      <p className="font-black text-white text-sm mt-0.5">
+                        {Math.round(selectedBus.lastKnownLocation?.heading || selectedBus.heading || 0)}°
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/10 p-2.5 rounded-xl text-xs">
+                    <p className="text-[10px] text-slate-300 font-bold uppercase">Driver Note</p>
+                    <p className="text-xs text-blue-200 mt-0.5">
+                      {selectedBus.statusMessage || 'Operating normally on schedule'}
                     </p>
                   </div>
-                  <div className="bg-white/5 p-2 rounded-xl">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Heading</span>
-                    <p className="font-black text-white text-sm mt-0.5">
-                      {Math.round(selectedBus.lastKnownLocation?.heading || selectedBus.heading || 0)}°
-                    </p>
-                  </div>
                 </div>
 
-                <div className="bg-white/10 p-2.5 rounded-xl text-xs">
-                  <p className="text-[10px] text-slate-300 font-bold uppercase">Driver Note</p>
-                  <p className="text-xs text-blue-200 mt-0.5">
-                    {selectedBus.statusMessage || 'Operating normally on schedule'}
-                  </p>
-                </div>
+                {/* Live ML Prediction Detail for Selected Bus */}
+                {(() => {
+                  const pred = fleetPredictions.find((p) => p.busId === selectedBus._id);
+                  if (!pred) return null;
+                  return (
+                    <div className="space-y-2">
+                      <CrowdIndicator
+                        crowdLevel={pred.crowd.crowdLevel}
+                        occupancyPercentage={pred.crowd.occupancyPercentage}
+                        estimatedPassengers={pred.crowd.estimatedPassengers}
+                        capacity={pred.crowd.capacity}
+                        trend={pred.crowd.trend}
+                        confidence={pred.crowd.confidence}
+                      />
+                      <PredictionCard
+                        baseETA={pred.eta.baseETA}
+                        predictedETA={pred.eta.predictedETA}
+                        adjustmentMinutes={pred.eta.adjustmentMinutes}
+                        confidence={pred.eta.confidence}
+                        stopName={pred.eta.targetStop}
+                        predictionSource="ml_model_v1"
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             ) : selectedStop ? (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
@@ -697,6 +757,81 @@ export const StudentHome = () => {
           }}
           onFocusMap={() => setActiveTab('map')}
         />
+      )}
+
+      {/* ML Predictions & Crowd Tab */}
+      {activeTab === 'predictions' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-5 rounded-2xl shadow-md">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-5 h-5 text-amber-300" />
+              <h3 className="font-extrabold text-base">ML Predictions & Fleet Crowd Hub</h3>
+            </div>
+            <p className="text-xs text-purple-200/90">
+              Live machine learning predictions for bus arrivals, vehicle passenger crowding, and campus travel demand
+            </p>
+          </div>
+
+          {/* Active Buses Prediction Roster */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <h4 className="font-bold text-slate-900 text-base">Live Bus Predictions</h4>
+              <p className="text-xs text-slate-500">Real-time crowd estimates and ML refined ETAs</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fleetPredictions.map((pred) => (
+                <div
+                  key={pred.busId}
+                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bus className="w-4 h-4 text-purple-600" />
+                      <span className="font-extrabold text-slate-900 text-sm">{pred.busNumber}</span>
+                      <span className="text-xs font-mono text-slate-500">({pred.plateNumber})</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        pred.status === 'active'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : pred.status === 'delayed'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {pred.status}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-600">
+                    <strong>Route:</strong> {pred.route?.name || 'Campus Line'} ({pred.route?.code || '—'})
+                  </div>
+
+                  <CrowdIndicator
+                    crowdLevel={pred.crowd.crowdLevel}
+                    occupancyPercentage={pred.crowd.occupancyPercentage}
+                    estimatedPassengers={pred.crowd.estimatedPassengers}
+                    capacity={pred.crowd.capacity}
+                    trend={pred.crowd.trend}
+                    confidence={pred.crowd.confidence}
+                  />
+
+                  <PredictionCard
+                    baseETA={pred.eta.baseETA}
+                    predictedETA={pred.eta.predictedETA}
+                    adjustmentMinutes={pred.eta.adjustmentMinutes}
+                    confidence={pred.eta.confidence}
+                    stopName={pred.eta.targetStop}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Transport Demand Forecast */}
+          <DemandForecast routes={routes} />
+        </div>
       )}
 
       {/* Complaints & Feedback Tab */}

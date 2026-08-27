@@ -4,6 +4,8 @@ import { Stop } from '../models/Stop.js';
 import { Schedule } from '../models/Schedule.js';
 import { calculateHaversineDistance, calculateStopETAs } from '../utils/geoUtils.js';
 import { planTrip as planTripEngine } from './tripPlannerService.js';
+import { etaPredictionService } from './prediction/etaPredictionService.js';
+import { crowdPredictionService } from './prediction/crowdPredictionService.js';
 
 /**
  * Transport Assistant Tool Library
@@ -364,6 +366,107 @@ export const assistantTools = {
         estimatedDurationMinutes: r.estimatedDurationMinutes,
         stops: r.stops.map((s) => s.stop?.name || s.stop?.code || 'Stop'),
       })),
+    };
+  },
+
+  /**
+   * 10. Get ML Passenger Crowd & Occupancy Estimation for a bus
+   * @param {string} busNumber E.g. "Bus 12"
+   */
+  async getBusCrowd(busNumber) {
+    if (!busNumber) return { found: false, message: 'Bus number is required' };
+    const cleanNum = String(busNumber).replace(/[^0-9]/g, '').padStart(2, '0');
+    const bus = await Bus.findOne({
+      $or: [
+        { busNumber: new RegExp(cleanNum, 'i') },
+        { busNumber: new RegExp(busNumber, 'i') },
+        { plateNumber: new RegExp(busNumber, 'i') },
+      ],
+    });
+
+    if (!bus) {
+      return { found: false, message: `Bus ${busNumber} was not found in campus fleet.` };
+    }
+
+    const crowdData = await crowdPredictionService.predictBusCrowd({ busId: bus._id });
+    return crowdData;
+  },
+
+  /**
+   * 11. Get ML Refined ETA with Base ETA comparison for a bus
+   * @param {string} busNumber E.g. "Bus 12"
+   * @param {string} [stopIdentifier] Optional target stop code/name
+   */
+  async getRefinedETA(busNumber, stopIdentifier) {
+    if (!busNumber) return { found: false, message: 'Bus number is required' };
+    const cleanNum = String(busNumber).replace(/[^0-9]/g, '').padStart(2, '0');
+    const bus = await Bus.findOne({
+      $or: [
+        { busNumber: new RegExp(cleanNum, 'i') },
+        { busNumber: new RegExp(busNumber, 'i') },
+        { plateNumber: new RegExp(busNumber, 'i') },
+      ],
+    });
+
+    if (!bus) {
+      return { found: false, message: `Bus ${busNumber} was not found in campus fleet.` };
+    }
+
+    let stopId = undefined;
+    if (stopIdentifier) {
+      const stops = await Stop.find({ active: true }).lean();
+      const q = stopIdentifier.toLowerCase().trim();
+      const matched = stops.find(
+        (s) => s.code.toLowerCase() === q || s.name.toLowerCase().includes(q) || q.includes(s.code.toLowerCase())
+      );
+      if (matched) stopId = matched._id;
+    }
+
+    const etaData = await etaPredictionService.predictBusETA({ busId: bus._id, stopId });
+    return etaData;
+  },
+
+  /**
+   * 12. Compare crowd levels across active campus routes
+   */
+  async compareRouteCrowd() {
+    const [buses, routes] = await Promise.all([
+      Bus.find().populate('currentRoute').lean(),
+      Route.find({ active: true }).lean(),
+    ]);
+
+    const routeSummaries = await Promise.all(
+      routes.map(async (r) => {
+        const assignedBuses = buses.filter((b) => b.currentRoute?._id?.toString() === r._id.toString());
+        const crowdEstimates = await Promise.all(
+          assignedBuses.map((b) => crowdPredictionService.predictBusCrowd({ busId: b._id }))
+        );
+
+        const avgOccupancy =
+          crowdEstimates.length > 0
+            ? Math.round(
+                crowdEstimates.reduce((sum, c) => sum + c.occupancyPercentage, 0) / crowdEstimates.length
+              )
+            : 35;
+
+        let crowdLevel = 'LOW';
+        if (avgOccupancy >= 75) crowdLevel = 'HIGH';
+        else if (avgOccupancy >= 45) crowdLevel = 'MODERATE';
+
+        return {
+          routeId: r._id,
+          routeName: r.name,
+          routeCode: r.code,
+          activeBuses: assignedBuses.length,
+          avgOccupancy,
+          crowdLevel,
+        };
+      })
+    );
+
+    return {
+      success: true,
+      routes: routeSummaries.sort((a, b) => a.avgOccupancy - b.avgOccupancy),
     };
   },
 };

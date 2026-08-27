@@ -1,0 +1,31 @@
+{
+  "trainedAt": "2026-08-27T12:34:42.619Z",
+  "trainingDurationMs": 111,
+  "datasetSamples": {
+    "eta": 4000,
+    "crowd": 4000,
+    "demand": 4000
+  },
+  "metrics": {
+    "eta": {
+      "modelType": "RidgeRegressor (L2 Regularized)",
+      "mae": 0.658,
+      "rmse": 0.821,
+      "r2": 0.86,
+      "sampleCount": 800
+    },
+    "crowd": {
+      "modelType": "CrowdEstimator (Calibrated Linear & Quantile Classifier)",
+      "occupancyMae": 0.094,
+      "occupancyRmse": 0.115,
+      "categoryAccuracy": 0.714
+    },
+    "demand": {
+      "modelType": "RandomForestRegressor (8 Trees, Depth 6)",
+      "mae": 5.994,
+      "rmse": 7.472,
+      "r2": 0.979,
+      "sampleCount": 800
+    }
+  }
+}

@@ -12,6 +12,8 @@ import { RoleBadge } from '../components/RoleBadge';
 import { socketService } from '../services/socketService';
 import { AdminComplaints } from '../components/AdminComplaints';
 import { AdminIncidents } from '../components/AdminIncidents';
+import { FleetPredictionPanel } from '../components/FleetPredictionPanel';
+import { DemandForecast } from '../components/DemandForecast';
 import {
   Bus,
   MapPin,
@@ -28,6 +30,7 @@ import {
   CheckCircle2,
   MessageSquare,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
@@ -448,6 +451,14 @@ export const AdminDashboard = () => {
           >
             <ShieldAlert className="w-3.5 h-3.5 text-rose-300" /> Incidents
           </button>
+          <button
+            onClick={() => setActiveTab('predictions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'predictions' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> ML Predictions & Demand
+          </button>
         </div>
       </div>
 
@@ -824,6 +835,14 @@ export const AdminDashboard = () => {
 
       {/* INCIDENTS DISPATCH TAB */}
       {activeTab === 'incidents' && <AdminIncidents />}
+
+      {/* ML PREDICTIONS & DEMAND TAB */}
+      {activeTab === 'predictions' && (
+        <div className="space-y-6">
+          <FleetPredictionPanel />
+          <DemandForecast routes={routes} />
+        </div>
+      )}
 
       {/* Reusable CRUD Modal Form */}
       <Modal

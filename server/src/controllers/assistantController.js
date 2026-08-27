@@ -75,6 +75,18 @@ export const getAssistantSuggestions = async (req, res, next) => {
         category: 'Fleet Status',
         intent: 'BUS_STATUS',
       },
+      {
+        id: 'p8',
+        text: 'How crowded is Bus 12?',
+        category: 'Predictions',
+        intent: 'CROWD_ESTIMATION',
+      },
+      {
+        id: 'p9',
+        text: 'Which route is less crowded?',
+        category: 'Predictions',
+        intent: 'CROWD_ESTIMATION',
+      },
     ];
 
     res.status(200).json({

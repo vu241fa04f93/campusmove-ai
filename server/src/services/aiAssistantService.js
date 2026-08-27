@@ -61,6 +61,9 @@ class AIAssistantService {
       case 'BUS_STATUS':
         return await this.handleBusStatus(entities, { rawMessage, context });
 
+      case 'CROWD_ESTIMATION':
+        return await this.handleCrowdEstimation(entities, { rawMessage, context });
+
       case 'ROUTE_SEARCH':
       case 'TRIP_PLANNING':
         return await this.handleRouteSearch(entities, { rawMessage, context });
@@ -296,7 +299,23 @@ class AIAssistantService {
       return 'BUS_STATUS';
     }
 
-    // 6. Route search / trip planning / route listings
+    // 6. Crowd / Passenger Load queries
+    if (
+      text.includes('crowded') ||
+      text.includes('crowd') ||
+      text.includes('occupancy') ||
+      text.includes('how full') ||
+      text.includes('passenger load') ||
+      text.includes('passengers on') ||
+      text.includes('how many seats') ||
+      text.includes('available seats') ||
+      text.includes('less crowded') ||
+      text.includes('least crowded')
+    ) {
+      return 'CROWD_ESTIMATION';
+    }
+
+    // 7. Route search / trip planning / route listings
     if (
       text.includes('fastest route') ||
       text.includes('route to') ||
@@ -542,6 +561,66 @@ class AIAssistantService {
       answer: text,
       response: text,
       data: activeData,
+    };
+  }
+
+  /**
+   * Handle CROWD_ESTIMATION intent via assistantTools.getBusCrowd & compareRouteCrowd
+   */
+  async handleCrowdEstimation(entities, { rawMessage, context }) {
+    const text = rawMessage.toLowerCase();
+
+    // 1. Single bus crowd inquiry (e.g. "How crowded is Bus 12?")
+    if (entities.rawBusNumber) {
+      const crowdData = await this.tools.getBusCrowd(entities.rawBusNumber);
+      if (!crowdData.found) {
+        const reply = `Bus ${entities.rawBusNumber} is not currently active in the campus fleet.`;
+        return {
+          success: true,
+          intent: 'CROWD_ESTIMATION',
+          answer: reply,
+          response: reply,
+          data: { busNumber: `Bus ${entities.rawBusNumber}`, active: false },
+        };
+      }
+
+      const reply = `${crowdData.busNumber} passenger load is currently ${crowdData.crowdLevel} (${crowdData.occupancyPercentage}% full — estimated ${crowdData.estimatedPassengers}/${crowdData.capacity} passengers, ${crowdData.availableSeats} seats open). ${crowdData.statusMessage}.`;
+
+      return {
+        success: true,
+        intent: 'CROWD_ESTIMATION',
+        answer: reply,
+        response: reply,
+        data: crowdData,
+      };
+    }
+
+    // 2. Compare route crowd inquiry (e.g. "Which route is less crowded?")
+    const routeCompare = await this.tools.compareRouteCrowd();
+    if (routeCompare.routes && routeCompare.routes.length > 0) {
+      const leastCrowded = routeCompare.routes[0];
+      const summaryList = routeCompare.routes
+        .map((r) => `• Route ${r.routeCode} (${r.routeName}): ${r.crowdLevel} (${r.avgOccupancy}% occupancy)`)
+        .join('\n');
+
+      const reply = `The least crowded corridor is currently Route ${leastCrowded.routeCode} (${leastCrowded.routeName}) with an average occupancy of ${leastCrowded.avgOccupancy}% (${leastCrowded.crowdLevel}).\n\nCampus Route Breakdown:\n${summaryList}`;
+
+      return {
+        success: true,
+        intent: 'CROWD_ESTIMATION',
+        answer: reply,
+        response: reply,
+        data: routeCompare,
+      };
+    }
+
+    const fallback = `All active campus shuttles are operating with normal moderate crowd levels.`;
+    return {
+      success: true,
+      intent: 'CROWD_ESTIMATION',
+      answer: fallback,
+      response: fallback,
+      data: null,
     };
   }
 

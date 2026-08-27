@@ -24,6 +24,8 @@ import assistantRoutes from './routes/assistantRoutes.js';
 import alertRoutes from './routes/alertRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import incidentRoutes from './routes/incidentRoutes.js';
+import predictionRoutes from './routes/predictionRoutes.js';
+import { loadTrainedModels } from './ml/trainModels.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -61,6 +63,7 @@ app.use('/api/agent', assistantRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/incidents', incidentRoutes);
+app.use('/api/predictions', predictionRoutes);
 
 // 404 Route handler
 app.use('*', (req, res) => {
@@ -85,6 +88,10 @@ const startServer = async () => {
       console.log('[Server] Fresh database detected. Auto-seeding initial campus data...');
       await seedDatabase();
     }
+
+    // Initialize & warm up ML prediction models
+    console.log('[Server] Initializing CampusMove AI ML Prediction Engine...');
+    await loadTrainedModels();
 
     server.listen(PORT, () => {
       console.log(`\n======================================================`);
