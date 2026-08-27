@@ -20,6 +20,7 @@ import stopRoutes from './routes/stopRoutes.js';
 import scheduleRoutes from './routes/scheduleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import tripRoutes from './routes/tripRoutes.js';
+import assistantRoutes from './routes/assistantRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -52,6 +53,8 @@ app.use('/api/stops', stopRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/assistant', assistantRoutes);
+app.use('/api/agent', assistantRoutes);
 
 // 404 Route handler
 app.use('*', (req, res) => {

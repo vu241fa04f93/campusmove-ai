@@ -79,5 +79,26 @@ campusmove-ai/
 
 ---
 
+## 🤖 Phase 4: Natural Language AI Transport Assistant
+
+CampusMove AI includes a conversational assistant that understands natural language queries, extracts transport entities, and interfaces with the live telemetry and Phase 3 Trip Planner engine without requiring paid external LLM APIs.
+
+### Supported Intents:
+- **`BUS_ETA`**: *"When will Bus 12 arrive?"* / *"ETA for Bus 07 at Hostel 3"*
+- **`BUS_LOCATION`**: *"Where is Bus 04 right now?"* / *"Where is my bus?"*
+- **`ROUTE_SEARCH`**: *"I need to reach college from Hostel 3 by 9 AM"* / *"Fastest route to Library"*
+- **`NEXT_STOP`**: *"What is the next stop for Bus 12?"*
+- **`BUS_STATUS`**: *"Show delayed buses"* / *"Is Bus 04 running?"*
+- **`GENERAL_HELP`**: *"What can you do?"* / *"Help"*
+
+### API Endpoints:
+- `POST /api/assistant/chat` (alias `POST /api/agent/chat`)
+  - Request: `{ "message": "When will Bus 12 arrive?", "context": { "currentTime": "08:35" } }`
+  - Response: `{ "success": true, "intent": "BUS_ETA", "response": "...", "data": { ... } }`
+- `GET /api/assistant/suggestions`
+
+---
+
 ## 🏗️ Architecture & Development Phases
 See [ARCHITECTURE.md](./ARCHITECTURE.md) and [PHASES.md](./PHASES.md) for detailed blueprints.
+

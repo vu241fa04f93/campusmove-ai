@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CampusMap } from '../components/CampusMap';
 import { TripPlanner } from '../components/TripPlanner';
+import { AssistantChat } from '../components/AssistantChat';
 import { StatCard } from '../components/StatCard';
 import { stopApi } from '../api/stopApi';
 import { routeApi } from '../api/routeApi';
@@ -15,6 +16,7 @@ import {
   Clock,
   Navigation,
   Sparkles,
+  Bot,
   Info,
   Calendar,
   Layers,
@@ -177,6 +179,14 @@ export const StudentHome = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab('assistant')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'assistant' ? 'bg-white text-indigo-950 shadow-md ring-2 ring-indigo-300' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <Bot className="w-4 h-4 text-cyan-300" /> AI Assistant
+          </button>
           <button
             onClick={() => setActiveTab('plan')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
@@ -604,6 +614,25 @@ export const StudentHome = () => {
         <TripPlanner
           stops={stops}
           routes={routes}
+          onSelectRoute={(route) => {
+            setSelectedRoute(route);
+            setActiveTab('map');
+          }}
+          onSelectStop={(stop) => {
+            setSelectedStop(stop);
+            setActiveTab('map');
+          }}
+          onSelectBus={(bus) => {
+            setSelectedBus(bus);
+            setActiveTab('map');
+          }}
+          onFocusMap={() => setActiveTab('map')}
+        />
+      )}
+
+      {/* AI Assistant Tab */}
+      {activeTab === 'assistant' && (
+        <AssistantChat
           onSelectRoute={(route) => {
             setSelectedRoute(route);
             setActiveTab('map');
