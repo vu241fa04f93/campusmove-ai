@@ -25,6 +25,7 @@ import alertRoutes from './routes/alertRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import incidentRoutes from './routes/incidentRoutes.js';
 import predictionRoutes from './routes/predictionRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import { loadTrainedModels } from './ml/trainModels.js';
 
 const app = express();
@@ -64,6 +65,7 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/predictions', predictionRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // 404 Route handler
 app.use('*', (req, res) => {

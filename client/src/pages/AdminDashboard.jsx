@@ -14,6 +14,11 @@ import { AdminComplaints } from '../components/AdminComplaints';
 import { AdminIncidents } from '../components/AdminIncidents';
 import { FleetPredictionPanel } from '../components/FleetPredictionPanel';
 import { DemandForecast } from '../components/DemandForecast';
+import { AdminOverview } from '../components/AdminOverview';
+import { FleetAnalytics } from '../components/FleetAnalytics';
+import { RouteAnalytics } from '../components/RouteAnalytics';
+import { OperationalTrends } from '../components/OperationalTrends';
+import { PilotReadinessPanel } from '../components/PilotReadinessPanel';
 import {
   Bus,
   MapPin,
@@ -31,6 +36,10 @@ import {
   MessageSquare,
   ShieldAlert,
   Sparkles,
+  TrendingUp,
+  BarChart2,
+  HeartPulse,
+  Rocket,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
@@ -389,11 +398,35 @@ export const AdminDashboard = () => {
         <div className="flex flex-wrap gap-1.5 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
               activeTab === 'overview' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
             }`}
           >
-            Live Overview
+            <HeartPulse className="w-3.5 h-3.5 text-emerald-300" /> Executive Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('fleetAnalytics')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'fleetAnalytics' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <BarChart2 className="w-3.5 h-3.5 text-purple-300" /> Fleet Intelligence
+          </button>
+          <button
+            onClick={() => setActiveTab('routeAnalytics')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'routeAnalytics' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <Navigation className="w-3.5 h-3.5 text-blue-300" /> Route Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('operationalTrends')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'operationalTrends' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-cyan-300" /> Trends
           </button>
           <button
             onClick={() => setActiveTab('buses')}
@@ -409,7 +442,7 @@ export const AdminDashboard = () => {
               activeTab === 'routes' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
             }`}
           >
-            <Navigation className="w-3.5 h-3.5" /> Routes ({routes.length})
+            <Layers className="w-3.5 h-3.5" /> Routes ({routes.length})
           </button>
           <button
             onClick={() => setActiveTab('stops')}
@@ -459,6 +492,14 @@ export const AdminDashboard = () => {
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" /> ML Predictions & Demand
           </button>
+          <button
+            onClick={() => setActiveTab('pilotReadiness')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'pilotReadiness' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <Rocket className="w-3.5 h-3.5 text-amber-300" /> Pilot Readiness
+          </button>
         </div>
       </div>
 
@@ -473,6 +514,7 @@ export const AdminDashboard = () => {
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          <AdminOverview />
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -830,6 +872,15 @@ export const AdminDashboard = () => {
         </div>
       )}
 
+      {/* FLEET INTELLIGENCE TAB */}
+      {activeTab === 'fleetAnalytics' && <FleetAnalytics />}
+
+      {/* ROUTE ANALYTICS TAB */}
+      {activeTab === 'routeAnalytics' && <RouteAnalytics />}
+
+      {/* OPERATIONAL TRENDS TAB */}
+      {activeTab === 'operationalTrends' && <OperationalTrends />}
+
       {/* COMPLAINTS MANAGEMENT TAB */}
       {activeTab === 'complaints' && <AdminComplaints />}
 
@@ -843,6 +894,9 @@ export const AdminDashboard = () => {
           <DemandForecast routes={routes} />
         </div>
       )}
+
+      {/* PILOT READINESS TAB */}
+      {activeTab === 'pilotReadiness' && <PilotReadinessPanel />}
 
       {/* Reusable CRUD Modal Form */}
       <Modal
