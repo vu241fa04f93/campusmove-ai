@@ -1,54 +1,44 @@
-import axios from 'axios';
-
-const API_BASE_URL = '/api';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
+import { apiClient } from './apiClient';
 
 export const analyticsApi = {
   getOverview: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/overview`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/overview');
     return response.data;
   },
 
   getFleet: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/fleet`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/fleet');
     return response.data;
   },
 
   getRoutes: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/routes`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/routes');
     return response.data;
   },
 
   getComplaints: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/complaints`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/complaints');
     return response.data;
   },
 
   getIncidents: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/incidents`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/incidents');
     return response.data;
   },
 
   getPredictions: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/predictions`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/predictions');
     return response.data;
   },
 
   getTrends: async (range = '7d') => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/trends?range=${range}`, getAuthHeaders());
+    const response = await apiClient.get(`/analytics/trends?range=${range}`);
     return response.data;
   },
 
   getPilotReadiness: async () => {
-    const response = await axios.get(`${API_BASE_URL}/analytics/pilot-readiness`, getAuthHeaders());
+    const response = await apiClient.get('/analytics/pilot-readiness');
     return response.data;
   },
 };
+

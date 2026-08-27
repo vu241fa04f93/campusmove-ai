@@ -51,7 +51,7 @@ export const getFleetAnalytics = async () => {
         // Try getting Phase 7 crowd estimation
         let crowdData = null;
         try {
-          crowdData = await crowdPredictionService.estimateBusCrowd(bus._id);
+          crowdData = await crowdPredictionService.predictBusCrowd({ busId: bus._id });
         } catch {
           // Graceful fallback if ML service unavailable
         }

@@ -122,4 +122,8 @@ export const crowdPredictionService = {
 
     return result;
   },
+
+  async estimateBusCrowd(busId) {
+    return this.predictBusCrowd({ busId });
+  },
 };
