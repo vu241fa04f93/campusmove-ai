@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { busApi } from '../api/busApi';
 import { socketService } from '../services/socketService';
 import { formatSpeed, formatDistance } from '../utils/etaCalculator';
+import { DriverIncidentModal } from '../components/DriverIncidentModal';
 import {
   Bus,
   Navigation,
@@ -28,6 +29,7 @@ export const DriverDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [successNotice, setSuccessNotice] = useState('');
+  const [showIncidentModal, setShowIncidentModal] = useState(false);
 
   // Trip & GPS States
   const [isTripActive, setIsTripActive] = useState(false);
@@ -348,9 +350,17 @@ export const DriverDashboard = () => {
           </p>
         </div>
 
-        <div className="bg-emerald-700/50 border border-emerald-500/40 px-4 py-2.5 rounded-xl text-center min-w-[140px]">
-          <p className="text-[10px] uppercase font-bold text-emerald-200">Vehicle Assigned</p>
-          <p className="text-lg font-black text-white">{assignedBus?.busNumber || 'Bus 12'}</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowIncidentModal(true)}
+            className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-rose-500/50"
+          >
+            <ShieldAlert className="w-4 h-4" /> Report Incident
+          </button>
+          <div className="bg-emerald-700/50 border border-emerald-500/40 px-4 py-2.5 rounded-xl text-center min-w-[140px]">
+            <p className="text-[10px] uppercase font-bold text-emerald-200">Vehicle Assigned</p>
+            <p className="text-lg font-black text-white">{assignedBus?.busNumber || 'Bus 12'}</p>
+          </div>
         </div>
       </div>
 
@@ -620,6 +630,18 @@ export const DriverDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Driver Incident Reporting Modal */}
+      <DriverIncidentModal
+        isOpen={showIncidentModal}
+        onClose={() => setShowIncidentModal(false)}
+        bus={assignedBus}
+        route={assignedBus?.currentRoute}
+        onIncidentReported={(newInc) => {
+          setSuccessNotice(`Incident report logged successfully (${newInc.incidentNumber || 'Dispatch notified'})`);
+          setTimeout(() => setSuccessNotice(''), 4000);
+        }}
+      />
     </div>
   );
 };

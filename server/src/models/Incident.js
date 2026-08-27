@@ -2,6 +2,33 @@ import mongoose from 'mongoose';
 
 const incidentSchema = new mongoose.Schema(
   {
+    incidentNumber: {
+      type: String,
+      unique: true,
+      index: true,
+    },
+    title: {
+      type: String,
+      required: [true, 'Incident title is required'],
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: [true, 'Incident description is required'],
+    },
+    type: {
+      type: String,
+      enum: ['accident', 'breakdown', 'traffic', 'safety', 'medical', 'other'],
+      default: 'other',
+      required: true,
+      index: true,
+    },
+    severity: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'critical'],
+      default: 'medium',
+      index: true,
+    },
     bus: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Bus',
@@ -10,31 +37,52 @@ const incidentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Route',
     },
+    location: {
+      lat: { type: Number },
+      lng: { type: Number },
+      address: { type: String, default: '' },
+      description: { type: String, default: '' },
+    },
     reportedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true,
     },
-    type: {
+    status: {
       type: String,
-      enum: ['Breakdown', 'Severe Delay', 'Route Blockage', 'Accident', 'Weather Disruption', 'Other'],
-      required: true,
+      enum: ['reported', 'investigating', 'resolved', 'closed'],
+      default: 'reported',
+      index: true,
     },
-    description: {
+    resolutionNotes: {
       type: String,
-      required: true,
+      default: '',
     },
-    severity: {
-      type: String,
-      enum: ['Low', 'Medium', 'High', 'Critical'],
-      default: 'Medium',
+    resolvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
-    resolved: {
-      type: Boolean,
-      default: false,
+    resolvedAt: {
+      type: Date,
+    },
+    closedAt: {
+      type: Date,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
+
+// Pre-save hook to auto-generate human-readable incident number
+incidentSchema.pre('validate', function (next) {
+  if (!this.incidentNumber) {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    this.incidentNumber = `INC-${dateStr}-${randomSuffix}`;
+  }
+  next();
+});
 
 export const Incident = mongoose.model('Incident', incidentSchema);

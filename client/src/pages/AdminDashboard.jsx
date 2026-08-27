@@ -10,6 +10,8 @@ import { scheduleApi } from '../api/scheduleApi';
 import { userApi } from '../api/userApi';
 import { RoleBadge } from '../components/RoleBadge';
 import { socketService } from '../services/socketService';
+import { AdminComplaints } from '../components/AdminComplaints';
+import { AdminIncidents } from '../components/AdminIncidents';
 import {
   Bus,
   MapPin,
@@ -24,6 +26,8 @@ import {
   AlertCircle,
   Users,
   CheckCircle2,
+  MessageSquare,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
@@ -428,6 +432,22 @@ export const AdminDashboard = () => {
           >
             <Users className="w-3.5 h-3.5" /> Users ({usersList.length})
           </button>
+          <button
+            onClick={() => setActiveTab('complaints')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'complaints' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-300" /> Complaints
+          </button>
+          <button
+            onClick={() => setActiveTab('incidents')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              activeTab === 'incidents' ? 'bg-purple-600 text-white shadow' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-300" /> Incidents
+          </button>
         </div>
       </div>
 
@@ -798,6 +818,12 @@ export const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* COMPLAINTS MANAGEMENT TAB */}
+      {activeTab === 'complaints' && <AdminComplaints />}
+
+      {/* INCIDENTS DISPATCH TAB */}
+      {activeTab === 'incidents' && <AdminIncidents />}
 
       {/* Reusable CRUD Modal Form */}
       <Modal

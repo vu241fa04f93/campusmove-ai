@@ -4,6 +4,7 @@ import { CampusMap } from '../components/CampusMap';
 import { TripPlanner } from '../components/TripPlanner';
 import { AssistantChat } from '../components/AssistantChat';
 import { AlertsPanel } from '../components/AlertsPanel';
+import { StudentComplaints } from '../components/StudentComplaints';
 import { StatCard } from '../components/StatCard';
 import { stopApi } from '../api/stopApi';
 import { routeApi } from '../api/routeApi';
@@ -20,6 +21,7 @@ import {
   Sparkles,
   Bot,
   BellRing,
+  MessageSquare,
   Info,
   Calendar,
   Layers,
@@ -237,6 +239,14 @@ export const StudentHome = () => {
             }`}
           >
             <Calendar className="w-4 h-4" /> Bus Timetable
+          </button>
+          <button
+            onClick={() => setActiveTab('complaints')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'complaints' ? 'bg-white text-indigo-950 shadow-md ring-2 ring-indigo-300' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 text-purple-300" /> Complaints & Tickets
           </button>
         </div>
       </div>
@@ -687,6 +697,11 @@ export const StudentHome = () => {
           }}
           onFocusMap={() => setActiveTab('map')}
         />
+      )}
+
+      {/* Complaints & Feedback Tab */}
+      {activeTab === 'complaints' && (
+        <StudentComplaints stops={stops} routes={routes} buses={buses} />
       )}
     </div>
   );
