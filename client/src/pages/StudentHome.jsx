@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { CampusMap } from '../components/CampusMap';
 import { TripPlanner } from '../components/TripPlanner';
 import { AssistantChat } from '../components/AssistantChat';
+import { AlertsPanel } from '../components/AlertsPanel';
 import { StatCard } from '../components/StatCard';
 import { stopApi } from '../api/stopApi';
 import { routeApi } from '../api/routeApi';
 import { busApi } from '../api/busApi';
 import { scheduleApi } from '../api/scheduleApi';
+import { alertApi } from '../api/alertApi';
 import { socketService } from '../services/socketService';
 import { formatSpeed, formatETA, formatDistance } from '../utils/etaCalculator';
 import {
@@ -17,6 +19,7 @@ import {
   Navigation,
   Sparkles,
   Bot,
+  BellRing,
   Info,
   Calendar,
   Layers,
@@ -40,21 +43,24 @@ export const StudentHome = () => {
   const [selectedBus, setSelectedBus] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('map'); // 'map', 'routes', 'schedules'
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [stopsRes, routesRes, busesRes, schedRes] = await Promise.all([
+      const [stopsRes, routesRes, busesRes, schedRes, alertsRes] = await Promise.all([
         stopApi.getAll(),
         routeApi.getAll(),
         busApi.getAll(),
         scheduleApi.getAll(),
+        alertApi.getAll({ unreadOnly: true }),
       ]);
 
       if (stopsRes.success) setStops(stopsRes.data);
       if (routesRes.success) setRoutes(routesRes.data);
       if (busesRes.success) setBuses(busesRes.data);
       if (schedRes.success) setSchedules(schedRes.data);
+      if (alertsRes.success) setUnreadAlertCount(alertsRes.unreadCount || 0);
     } catch (err) {
       console.error('[StudentHome] Failed to load data:', err);
     } finally {
@@ -179,6 +185,19 @@ export const StudentHome = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab('alerts')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 relative ${
+              activeTab === 'alerts' ? 'bg-white text-rose-950 shadow-md ring-2 ring-rose-300' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <BellRing className="w-4 h-4 text-rose-300" /> Push Alerts & Geofences
+            {unreadAlertCount > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full ml-1 animate-pulse">
+                {unreadAlertCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setActiveTab('assistant')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
@@ -633,6 +652,27 @@ export const StudentHome = () => {
       {/* AI Assistant Tab */}
       {activeTab === 'assistant' && (
         <AssistantChat
+          onSelectRoute={(route) => {
+            setSelectedRoute(route);
+            setActiveTab('map');
+          }}
+          onSelectStop={(stop) => {
+            setSelectedStop(stop);
+            setActiveTab('map');
+          }}
+          onSelectBus={(bus) => {
+            setSelectedBus(bus);
+            setActiveTab('map');
+          }}
+          onFocusMap={() => setActiveTab('map')}
+        />
+      )}
+
+      {/* Push Alerts & Geofences Tab */}
+      {activeTab === 'alerts' && (
+        <AlertsPanel
+          stops={stops}
+          buses={buses}
           onSelectRoute={(route) => {
             setSelectedRoute(route);
             setActiveTab('map');

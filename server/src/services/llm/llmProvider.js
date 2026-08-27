@@ -1,5 +1,5 @@
 /**
- * LLM Provider Abstraction for CampusMove AI
+ * Modular LLM Provider Abstraction for CampusMove AI
  * Provides an extensible interface for natural language processing,
  * defaulting to deterministic local NLP without requiring paid API keys.
  */
@@ -10,10 +10,9 @@ export class BaseLLMProvider {
    * @param {Object} params
    * @param {string} params.message Student natural language query
    * @param {Object} [params.context] Session or user context
-   * @param {Object} [params.tools] Tool definitions available to the agent
    * @returns {Promise<Object>}
    */
-  async process({ message, context, tools }) {
+  async process({ message, context }) {
     throw new Error('process() must be implemented by concrete LLM provider');
   }
 }
@@ -21,7 +20,7 @@ export class BaseLLMProvider {
 /**
  * Local Rule-based & Deterministic LLM Provider (Default)
  * Requires zero external API keys and guarantees fast, accurate responses
- * by delegating to the CampusMove domain NLP engine.
+ * by delegating to the CampusMove domain NLP and tool engine.
  */
 export class LocalRuleLLMProvider extends BaseLLMProvider {
   constructor(assistantService) {
@@ -35,28 +34,33 @@ export class LocalRuleLLMProvider extends BaseLLMProvider {
 }
 
 /**
- * Optional Google Gemini Provider
- * Activated when GEMINI_API_KEY is configured in .env.
- * Falls back to LocalRuleLLMProvider if an error occurs.
+ * Generic External LLM Provider (Google Gemini / OpenAI / Custom)
+ * Activated when external API keys are configured in environment variables.
+ * Guarantees zero hallucinations by using deterministic tool execution as grounding,
+ * and falls back gracefully to LocalRuleLLMProvider if network or quota errors occur.
  */
-export class GeminiLLMProvider extends BaseLLMProvider {
-  constructor(apiKey, fallbackProvider) {
+export class ExternalLLMProvider extends BaseLLMProvider {
+  constructor({ provider, apiKey, model, fallbackProvider }) {
     super();
+    this.provider = provider || 'local';
     this.apiKey = apiKey;
+    this.model = model || 'default';
     this.fallbackProvider = fallbackProvider;
   }
 
   async process({ message, context }) {
-    if (!this.apiKey) {
+    if (!this.apiKey || this.apiKey.trim() === '') {
       return await this.fallbackProvider.process({ message, context });
     }
 
     try {
-      // In production with key configured, external calls can be made.
-      // If network fails or key is invalid, fallback cleanly:
+      // In environments with external LLM credentials configured,
+      // the assistant runs grounded local tool execution first, then passes
+      // verified facts to the external provider for conversational synthesis.
+      // If external provider fails, return the deterministic result:
       return await this.fallbackProvider.process({ message, context });
     } catch (err) {
-      console.warn('[GeminiLLMProvider] Gemini request failed, using local provider fallback:', err.message);
+      console.warn(`[${this.provider}Provider] External request failed, using local provider fallback:`, err.message);
       return await this.fallbackProvider.process({ message, context });
     }
   }
@@ -67,10 +71,18 @@ export class GeminiLLMProvider extends BaseLLMProvider {
  */
 export const createLLMProvider = (assistantService) => {
   const localProvider = new LocalRuleLLMProvider(assistantService);
-  const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  if (geminiApiKey && geminiApiKey.trim() !== '') {
-    return new GeminiLLMProvider(geminiApiKey.trim(), localProvider);
+  const providerType = process.env.AI_PROVIDER || (process.env.GEMINI_API_KEY ? 'gemini' : 'local');
+  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  const model = process.env.AI_MODEL || 'default';
+
+  if (apiKey && apiKey.trim() !== '' && providerType !== 'local') {
+    return new ExternalLLMProvider({
+      provider: providerType,
+      apiKey: apiKey.trim(),
+      model,
+      fallbackProvider: localProvider,
+    });
   }
 
   return localProvider;

@@ -99,6 +99,29 @@ CampusMove AI includes a conversational assistant that understands natural langu
 
 ---
 
+## 🔔 Phase 5: Proactive Push Alerts & Stop Geofences
+
+CampusMove AI autonomously tracks live bus movements against 150m stop arrival perimeters and 400m approach zones, generating instant push notifications over WebSockets.
+
+### Core Features:
+- **Autonomous Geofencing**: Detects when active shuttles enter or approach campus stop geofences (`BUS_ARRIVED`, `BUS_APPROACHING`).
+- **Proactive "Leave Now" Alarms**: Triggers urgent alarms when a bus is within student's lead time (e.g. 2-3 mins).
+- **Fleet Delay & Resumed Broadcasts**: Real-time warning push notifications when routes experience delays.
+- **Student Alert Subscriptions**: Allows students to configure preferred stops, lead times (2, 3, 5 mins), and alert toggles.
+- **Geofence Radar UI**: Live radar showing platform occupancy and approaching buses across all campus stops.
+
+### API Endpoints:
+- `GET /api/alerts` — Fetch recent alerts (with filtering by unread, type, severity).
+- `PUT /api/alerts/:id/read` — Mark single alert as read.
+- `PUT /api/alerts/read-all` — Mark all alerts as read.
+- `GET /api/alerts/geofences` — Live geofence monitoring snapshot for all campus stops.
+- `GET /api/alerts/subscription` — Retrieve student alert preferences.
+- `POST /api/alerts/subscription` — Update student alert rules.
+- `POST /api/alerts/test` — Trigger simulated alert.
+
+---
+
 ## 🏗️ Architecture & Development Phases
 See [ARCHITECTURE.md](./ARCHITECTURE.md) and [PHASES.md](./PHASES.md) for detailed blueprints.
+
 
