@@ -113,6 +113,12 @@ class SocketService {
     this.socket.on('bus:status_updated', callback);
     return () => this.socket.off('bus:status_updated', callback);
   }
+
+  onAlertNew(callback) {
+    if (!this.socket) this.connect();
+    this.socket.on('alert:new', callback);
+    return () => this.socket.off('alert:new', callback);
+  }
 }
 
 export const socketService = new SocketService();

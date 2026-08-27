@@ -48,18 +48,18 @@ export const assistantTools = {
       statusMessage: bus.statusMessage,
       location: bus.lastKnownLocation
         ? {
-            lat: bus.lastKnownLocation.lat,
-            lng: bus.lastKnownLocation.lng,
-            speed: bus.lastKnownLocation.speed || 0,
-            heading: bus.lastKnownLocation.heading || 0,
-            updatedAt: bus.lastKnownLocation.updatedAt,
-          }
+          lat: bus.lastKnownLocation.lat,
+          lng: bus.lastKnownLocation.lng,
+          speed: bus.lastKnownLocation.speed || 0,
+          heading: bus.lastKnownLocation.heading || 0,
+          updatedAt: bus.lastKnownLocation.updatedAt,
+        }
         : null,
       currentRoute: bus.currentRoute
         ? {
-            name: bus.currentRoute.name,
-            code: bus.currentRoute.code,
-          }
+          name: bus.currentRoute.name,
+          code: bus.currentRoute.code,
+        }
         : null,
       driver: bus.currentDriver ? { name: bus.currentDriver.name } : null,
       message: !isLive ? `Live location for ${bus.busNumber} is currently unavailable.` : undefined,

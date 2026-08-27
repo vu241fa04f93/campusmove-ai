@@ -2,7 +2,9 @@ import { Server } from 'socket.io';
 import { Bus } from '../models/Bus.js';
 import { LiveLocation } from '../models/LiveLocation.js';
 import { Route } from '../models/Route.js';
+import { Alert } from '../models/Alert.js';
 import { calculateStopETAs } from '../utils/geoUtils.js';
+import { geofenceService } from '../services/geofenceService.js';
 
 let ioInstance = null;
 
@@ -10,7 +12,7 @@ export const initSocket = (httpServer, corsOrigin) => {
   const io = new Server(httpServer, {
     cors: {
       origin: corsOrigin || '*',
-      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
       credentials: true,
     },
   });
@@ -52,6 +54,7 @@ export const initSocket = (httpServer, corsOrigin) => {
           isLive: true,
           isSimulated: !!isSimulated,
           status: 'active',
+          statusMessage: 'Trip active — On schedule',
         };
         if (routeId) updateData.currentRoute = routeId;
         if (driverId) updateData.currentDriver = driverId;
@@ -73,6 +76,27 @@ export const initSocket = (httpServer, corsOrigin) => {
           isSimulated: !!isSimulated,
           timestamp: new Date(),
         });
+
+        // Generate Trip Started Alert
+        if (bus) {
+          const startAlert = await Alert.create({
+            title: `Trip Started: ${bus.busNumber}`,
+            message: `${bus.busNumber} has departed on ${bus.currentRoute?.name || 'Campus Route'}.`,
+            type: 'trip_started',
+            severity: 'info',
+            bus: bus._id,
+            route: bus.currentRoute?._id || null,
+            targetAudience: 'all',
+            active: true,
+          });
+
+          const populatedStart = await Alert.findById(startAlert._id)
+            .populate('bus', 'busNumber plateNumber status')
+            .populate('route', 'name code color')
+            .lean();
+
+          io.emit('alert:new', populatedStart);
+        }
       } catch (err) {
         console.error('[Socket.IO] Error handling start trip:', err.message);
       }
@@ -119,13 +143,13 @@ export const initSocket = (httpServer, corsOrigin) => {
           heading: locationObj.heading,
         });
 
-        // Compute Stop ETAs dynamically for downstream stops
+        // Dynamic Stop ETAs calculation
         let etas = [];
         if (bus?.currentRoute?.stops && bus.currentRoute.stops.length > 0) {
           etas = calculateStopETAs(locationObj, bus.currentRoute.stops, bus.status);
         }
 
-        // Broadcast to all clients (Student, Admin, Map viewers)
+        // Broadcast to all clients
         const broadcastPayload = {
           busId,
           busNumber: bus?.busNumber,
@@ -151,6 +175,11 @@ export const initSocket = (httpServer, corsOrigin) => {
         };
 
         io.emit('bus:location_broadcast', broadcastPayload);
+
+        // Process Geofence Proximity Triggers
+        if (bus) {
+          await geofenceService.processBusLocation(bus, locationObj, io);
+        }
       } catch (err) {
         console.error('[Socket.IO] Error handling location update:', err.message);
       }
@@ -180,6 +209,25 @@ export const initSocket = (httpServer, corsOrigin) => {
           busNumber: bus?.busNumber,
           timestamp: new Date(),
         });
+
+        // Generate Trip Ended Alert
+        if (bus) {
+          const endAlert = await Alert.create({
+            title: `Trip Completed: ${bus.busNumber}`,
+            message: `${bus.busNumber} has arrived at terminal and completed its trip.`,
+            type: 'trip_ended',
+            severity: 'info',
+            bus: bus._id,
+            targetAudience: 'all',
+            active: true,
+          });
+
+          const populatedEnd = await Alert.findById(endAlert._id)
+            .populate('bus', 'busNumber plateNumber status')
+            .lean();
+
+          io.emit('alert:new', populatedEnd);
+        }
       } catch (err) {
         console.error('[Socket.IO] Error handling end trip:', err.message);
       }
@@ -189,6 +237,9 @@ export const initSocket = (httpServer, corsOrigin) => {
     socket.on('bus:status_change', async (data) => {
       try {
         const { busId, status, statusMessage } = data;
+        const oldBus = await Bus.findById(busId).lean();
+        const oldStatus = oldBus ? oldBus.status : 'active';
+
         const bus = await Bus.findByIdAndUpdate(
           busId,
           { status, statusMessage },
@@ -211,6 +262,11 @@ export const initSocket = (httpServer, corsOrigin) => {
           etas,
           timestamp: new Date(),
         });
+
+        // Trigger smart status alerts
+        if (bus) {
+          await geofenceService.processStatusChange(bus, oldStatus, status, statusMessage, io);
+        }
       } catch (err) {
         console.error('[Socket.IO] Error handling bus status change:', err.message);
       }
